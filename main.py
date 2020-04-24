@@ -56,13 +56,13 @@ class Genome():
 		input_nodes = []
 		for i in range(input_size):
 			new_node = Node(num_nodes, node_type = "input")
-			input_nodes.append(node)
+			input_nodes.append(new_node)
 			num_nodes += 1
 
 		output_nodes = []
 		for i in range(output_size):
 			new_node = Node(num_nodes, node_type = "output")
-			output_nodes.append(node)
+			output_nodes.append(new_node)
 			num_nodes +=1
 		self.input_nodes = input_nodes
 		self.output_nodes = output_nodes
@@ -97,8 +97,13 @@ class Genome():
 """
 class Network():
 	
-	def __init__(self, genome, input_size, output_size):
-		self.genome = genome
+	def __init__(self, input_size, output_size, genome = None):
+		if genome != None:
+			self.genome = genome
+		else:
+			self.genome = Genome()
+			self.genome.initialize_empty(input_size, output_size)
+
 		self.input_size = input_size
 		self.output_size = output_size
 		self.predict_func = self.build_predict()
@@ -139,35 +144,35 @@ class Network():
 					outputs[node.num] = values[node.num]
 
 			return outputs
-	
+
 		return predict_func
 
 	"""
 		Does topoligical sort of the genome connections
 		so only a single pass of the graph is necessary
 	"""
-	@classmethod
+	@staticmethod
 	def topological_sort(genome):
 		#NOTE assumes a DAG is given, this must be taken care of in the mutators
-      	no_incoming = []
-      	no_incoming.extend(genome.input_nodes)
-      	removed_edges = set()
-      	#kahns algorithm
-      	sorted_nodes = []
-      	while len(no_incoming) > 0:
-      		current_node = no_incoming.pop(0)
-      		sorted_nodes.append(current_node)
-      		for edge in current_node.outgoing_edges:
-      			removed_edges.append(edge)
-      			empty = True
-      			for next_edge in edge.out_node.incoming_edges:
-      				if not next_edge in removed_edges:
-      					empty = False
-      					break
-      			if empty:
-      				no_incoming.append(edge.out_node)
+		no_incoming = []
+		no_incoming.extend(genome.input_nodes)
+		removed_edges = set()
+		#kahns algorithm
+		sorted_nodes = []
+		while len(no_incoming) > 0:
+			current_node = no_incoming.pop(0)
+			sorted_nodes.append(current_node)
+			for edge in current_node.outgoing_edges:
+				removed_edges.append(edge)
+				empty = True
+				for next_edge in edge.out_node.incoming_edges:
+					if not next_edge in removed_edges:
+						empty = False
+						break
+				if empty:
+					no_incoming.append(edge.out_node)
 
-        return sorted_nodes
+		return sorted_nodes
 
 """
 	Agent that belongs to the population used in the 
@@ -177,16 +182,25 @@ class Network():
 """
 class Agent():
 
-	def __init__(self, environment, genome):
+	def __init__(self, environment, genome = None):
 		self.environment = environment
 		self.genome = genome
-		self.network = Network(genome, environment.action_space.n, environment.input_space.n)
+		self.network = Network(environment.action_space.n, environment.observation_space.shape[0])
 
 	"""
 		Evaluates the fitness of the agent based on the passed environment
 	"""
 	def evaluate(self):
 		fitness = 0.0
+
+		observation = env.reset()
+		for t in range(100):
+			env.render()
+			action = env.action_space.sample()
+			observation, reward, done, info = env.step(action)
+			if done:
+				fitness = t * 1.0
+				break
 
 		return fitness
 
@@ -200,6 +214,17 @@ class Population():
 		self.agents = [Agent(environment) for i in range(population_size)]
 
 	"""
+		Evaluates the fitness of every agent in the population
+	"""
+	def evaluate(self):
+		fitness = []
+		for agent in self.agents:
+			agent_fitness = agent.evaluate()
+			fitness.append(agent_fitness)
+
+		return fitness
+
+	"""
 		Returns the number of agents in the population
 	"""
 	def size(self):
@@ -208,14 +233,18 @@ class Population():
 """
 	Runs the NEAT process for n_iterations
 """
-def run_neat(n_iterations, environment, population_size=100):
+def run_neat(n_generations, environment, population_size=10):
 	population = Population(population_size, environment)
+	fitnesses = population.evaluate()
+	print(fitnesses)
 
-	for iteration in range(n_iterations):
-		pass
+	#for generation in range(n_generations):
+	#	pass
 
 
 # Initialize the environment
 env = gym.make('CartPole-v0')
 # Run the evolutionary process for n generations
 neat_out = run_neat(50, env)
+
+env.close()
