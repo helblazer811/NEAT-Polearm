@@ -10,24 +10,37 @@ def relu(X):
 	Node object for a genome
 """
 class Node():
+	number = 0
 
-	def __init__(self, num, node_type="hidden", activation=relu):
-		self.num = num
+	def __init__(self, node_type="hidden", activation=relu, output_number = None, input_number = None):
+		self.num = Node.number + 1
+		Node.number += 1
 		self.type = node_type
 		self.activation = activation #fixed for now
 		self.incoming_edges = []
 		self.outgoing_edges = []
+		self.output_number = output_number
+		self.input_number = input_number
+
+	def __repr__(self):
+		return "Node(number = "+str(self.num)+", type = "+str(self.type)+")"
 
 """
 	Connection object for a genome
 """
 class Connection():
+	number = 0
 
 	def __init__(self, in_node, out_node, weight=None, enabled=True):
+		self.num = Connection.number + 1
+		Connection.number += 1
 		self.in_node = in_node
 		self.out_node = out_node
 		self.weight = weight if not weight == None else np.random.random_sample()
 		self.enabled = enabled
+
+	def __repr__(self):
+		return "Connection(number = "+str(self.num)+", input = "+str(self.in_node.num)+", out = "+str(self.out_node.num)+")"
 
 """
 	The genome for an agent defining a network, 
@@ -52,18 +65,15 @@ class Genome():
 		#generate input and output nodes
 		self.nodes = []
 		self.connections = []
-		num_nodes = 0
 		input_nodes = []
 		for i in range(input_size):
-			new_node = Node(num_nodes, node_type = "input")
+			new_node = Node(node_type = "input", input_number = i)
 			input_nodes.append(new_node)
-			num_nodes += 1
 
 		output_nodes = []
 		for i in range(output_size):
-			new_node = Node(num_nodes, node_type = "output")
+			new_node = Node(node_type = "output", output_number = i)
 			output_nodes.append(new_node)
-			num_nodes +=1
 		self.input_nodes = input_nodes
 		self.output_nodes = output_nodes
 		self.nodes.extend(input_nodes)
@@ -75,7 +85,8 @@ class Genome():
 			for out_node in output_nodes:
 				connection = Connection(in_node, out_node)
 				connections.append(connection)
-
+				in_node.outgoing_edges.append(connection)
+				out_node.incoming_edges.append(connection)
 		self.connections = connections
 
 	"""
@@ -113,7 +124,12 @@ class Network():
 	"""
 	def predict(self, state):
 		#runs the prediction function on the input state
-		return self.predict_func(state)
+		prediction = self.predict_func(state)
+		greatest_key = 0
+		for i in prediction.keys():
+			if prediction[i] > prediction[greatest_key]:
+				greatest_key = i
+		return greatest_key
 
 	"""
 		Builds a function that computes the outputs of the graph
@@ -135,14 +151,12 @@ class Network():
 			#set input values for the nodes
 			for i, input_node in enumerate(self.genome.input_nodes):
 				values[input_node.num] = state[i]
-
-			for i, node in sorted_genome:
+			for i, node in enumerate(sorted_genome):
 				if node.type == "input":
 					continue
 				values[node.num] = compute_node_output(node)
 				if node.type == "output":
-					outputs[node.num] = values[node.num]
-
+					outputs[node.output_number] = values[node.num]
 			return outputs
 
 		return predict_func
@@ -163,7 +177,7 @@ class Network():
 			current_node = no_incoming.pop(0)
 			sorted_nodes.append(current_node)
 			for edge in current_node.outgoing_edges:
-				removed_edges.append(edge)
+				removed_edges.add(edge)
 				empty = True
 				for next_edge in edge.out_node.incoming_edges:
 					if not next_edge in removed_edges:
@@ -171,7 +185,6 @@ class Network():
 						break
 				if empty:
 					no_incoming.append(edge.out_node)
-
 		return sorted_nodes
 
 """
@@ -185,7 +198,7 @@ class Agent():
 	def __init__(self, environment, genome = None):
 		self.environment = environment
 		self.genome = genome
-		self.network = Network(environment.action_space.n, environment.observation_space.shape[0])
+		self.network = Network(environment.observation_space.shape[0],environment.action_space.n)
 
 	"""
 		Evaluates the fitness of the agent based on the passed environment
@@ -196,7 +209,7 @@ class Agent():
 		observation = env.reset()
 		for t in range(100):
 			env.render()
-			action = env.action_space.sample()
+			action = self.network.predict(observation)
 			observation, reward, done, info = env.step(action)
 			if done:
 				fitness = t * 1.0
@@ -225,6 +238,20 @@ class Population():
 		return fitness
 
 	"""
+		Divides the population into several species based on 
+		the genome 
+	"""
+	def speciate(self):
+		pass
+
+	"""
+		Gives the intra species(determined by the speciate function) 
+		fitnesses of all the agents
+
+	"""
+
+
+	"""
 		Returns the number of agents in the population
 	"""
 	def size(self):
@@ -237,7 +264,6 @@ def run_neat(n_generations, environment, population_size=10):
 	population = Population(population_size, environment)
 	fitnesses = population.evaluate()
 	print(fitnesses)
-
 	#for generation in range(n_generations):
 	#	pass
 
