@@ -117,49 +117,35 @@ class Network():
 
 		self.input_size = input_size
 		self.output_size = output_size
-		self.predict_func = self.build_predict()
+		self.sorted_genome = Network.topological_sort(self.genome)
 
 	"""
-		Network that takes in the input state 
+		Network that takes in the input state and outputs
+		a prediction of the best action
 	"""
-	def predict(self, state):
-		#runs the prediction function on the input state
-		prediction = self.predict_func(state)
-		greatest_key = 0
-		for i in prediction.keys():
-			if prediction[i] > prediction[greatest_key]:
-				greatest_key = i
-		return greatest_key
+	def predict(self,state):
+		values = {}
+		outputs = [0] * len(self.genome.output_nodes)
+		def compute_node_output(node):
+			total = 0.0
+			for pred_edge in node.incoming_edges:
+				weight = pred_edge.weight
+				value = values[pred_edge.in_node.num]
+				total += weight * value
+			return node.activation(total)
 
-	"""
-		Builds a function that computes the outputs of the graph
-	"""
-	def build_predict(self):
-		sorted_genome = Network.topological_sort(self.genome)
+		#set input values for the nodes
+		for i, input_node in enumerate(self.genome.input_nodes):
+			values[input_node.num] = state[i]
+		for i, node in enumerate(self.sorted_genome):
+			if node.type == "input":
+				continue
+			values[node.num] = compute_node_output(node)
+			if node.type == "output":
+				outputs[node.output_number] = values[node.num]
 
-		def predict_func(state):
-			values = {}
-			outputs = {}
-			def compute_node_output(node):
-				total = 0.0
-				for pred_edge in node.incoming_edges:
-					weight = pred_edge.weight
-					value = values[pred_edge.in_node.num]
-					total += weight * value
-				return node.activation(total)
+		return np.argmax(outputs)
 
-			#set input values for the nodes
-			for i, input_node in enumerate(self.genome.input_nodes):
-				values[input_node.num] = state[i]
-			for i, node in enumerate(sorted_genome):
-				if node.type == "input":
-					continue
-				values[node.num] = compute_node_output(node)
-				if node.type == "output":
-					outputs[node.output_number] = values[node.num]
-			return outputs
-
-		return predict_func
 
 	"""
 		Does topoligical sort of the genome connections
@@ -263,7 +249,6 @@ class Population():
 def run_neat(n_generations, environment, population_size=10):
 	population = Population(population_size, environment)
 	fitnesses = population.evaluate()
-	print(fitnesses)
 	#for generation in range(n_generations):
 	#	pass
 
