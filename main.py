@@ -6,6 +6,9 @@ import numpy as np
 def relu(X):
    return np.maximum(0,X)
 
+
+# Tests
+
 """
 	Node object for a genome
 """
@@ -297,28 +300,48 @@ class Population():
 				if diff < threshold:
 					species[j] = num_species
 					removed.add(agents[j])
+
 		return species
 
 
 	"""
 		Calculates the fitnesses for the genomes intra-species
 	"""
-	def calculate_species_fitness(self):
+	def calculate_mean_fitnesses(self, fitnesses, species):
+		species_counts = [0] * max(species)
+		for agent_species in species:
+			species_counts[agent_species - 1] += 1
+
+		mean_fitnesses = [0.0] * max(species) 
+		for i, fitness in enumerate(fitnesses):
+			this_species = species[i]
+			mean_fitnesses[this_species - 1] += fitness / species_counts[this_species - 1]
+
+		return mean_fitnesses
+
+	"""
+		Calculates the fitnesses of the species relative to eachother
+	"""
+	def calculate_intra_fitnesses(self, mean_fitnesses, species, fitnesses):
 		pass
 
 	"""
 		Runs the Nuroevolution of Augmenting Topologies(NEAT) process
 	"""
 	def run_neuroevolution(self, n_generations, excess_c = 1, disjoint_c = 1, diff_threshold = 1):
-		fitnesses = self.evaluate() # Evaluates all agents in population
-		species = self.speciate(fitnesses) # Separates the agents into species
-
+		# Evaluates all agents in population
+		fitnesses = self.evaluate() 
+		# Separates the agents into species
+		species = self.speciate(fitnesses) 
 		# Calculate the species mean fitnesses
-
+		# NOTE Ignored for now
+		mean_fitnesses = self.calculate_mean_fitnesses(fitnesses, species) 
 		# Calculate the intra species relative fitnesses
-
+		# NOTE Ignored for now
+		intra_fitnesses = self.calculate_intra_fitnesses(mean_fitnesses, species, fitnesses)
 		# Select the genomes to survive based on the 
-
+		# Kill the bottom third
+		# Crossover the remaining ones randomly based on fitness values
 
 	"""
 		Returns the number of agents in the population
@@ -334,3 +357,13 @@ population = Population(10, env)
 neat_out = population.run_neuroevolution(50)
 
 env.close()
+
+
+# TODO
+# Fix the distance metric
+# Initialize the networks/genomes with the same topology
+# Maybe employ clustering on the genome difference data
+# Implement crossover
+# Integrate random mutation
+# Allow parameterization for mutation, crossover, species difference 
+#      thresholds, at the top level in run_neuroevolution
