@@ -40,7 +40,7 @@ class Connection():
 		self.enabled = enabled
 
 	def __repr__(self):
-		return "Connection(number = "+str(self.num)+", input = "+str(self.in_node.num)+", out = "+str(self.out_node.num)+")"
+		return "Connection(number = {}, input = {}, out = {})".format(self.num, self.in_node.num, self.out_node.num)
 
 """
 	The genome for an agent defining a network, 
@@ -74,6 +74,7 @@ class Genome():
 		for i in range(output_size):
 			new_node = Node(node_type = "output", output_number = i)
 			output_nodes.append(new_node)
+
 		self.input_nodes = input_nodes
 		self.output_nodes = output_nodes
 		self.nodes.extend(input_nodes)
@@ -100,6 +101,44 @@ class Genome():
 	"""
 	def add_node(self):
 		pass
+
+	"""
+		Measures the distance betweeen two genomes
+
+		Excess : newer genes in one genome, but not the other
+		Disjoint : old genes that dont exist in a genome
+	"""
+	@staticmethod
+	def distance(genome_a, genome_b):
+		distance = 0.0
+		# TODO differentiate between disjoint and excess
+
+		#make sets of the node and connection numbers for each genome
+		a_connections = set([conn.num for conn in genome_a.connections])
+		a_nodes = set([node.num for node in genome_a.nodes])
+		b_connections = set([conn.num for conn in genome_b.connections])
+		b_nodes = set([node.num for node in genome_b.nodes])
+
+		#norm it with the bigger size between a and b's genomes
+		max_connection_size = max(len(a_connections), len(b_connections))
+		distance += len(a_connections.difference(b_connections)) / max_connection_size
+		max_node_size = max(len(a_nodes), len(b_nodes))
+		distance += len(a_nodes.difference(b_nodes)) / max_node_size
+
+		#calculate weight differences for matching 
+		diff = 0.0
+		num_matching = 1
+		for conn_a in genome_a.connections:
+			for conn_b in genome_b.connections:
+				if conn_a.num == conn_b.num:
+					num_matching += 1
+					diff += abs(conn_a.weight - conn_b.weight)
+					break
+		diff /= num_matching
+
+		distance += diff
+
+		return distance
 
 """
 	A neural network that is being used as the best action 
@@ -211,30 +250,74 @@ class Population():
 
 	def __init__(self, population_size, environment):
 		self.agents = [Agent(environment) for i in range(population_size)]
+		self.population_size = population_size
 
 	"""
 		Evaluates the fitness of every agent in the population
 	"""
 	def evaluate(self):
-		fitness = []
+		fitnesses = []
 		for agent in self.agents:
 			agent_fitness = agent.evaluate()
-			fitness.append(agent_fitness)
+			fitnesses.append(agent_fitness)
 
-		return fitness
+		return fitnesses
 
 	"""
 		Divides the population into several species based on 
 		the genome 
 	"""
-	def speciate(self):
+	def speciate(self, fitnesses, threshold = 1.5):
+		# Calculate the distance metric of every genome in the population
+		# with every other genome
+		distances = []
+		for r in range(self.population_size):
+			row = []
+			for c in range(0, self.population_size):
+				if c == r:
+					continue
+				distance = Genome.distance(self.agents[r].network.genome, self.agents[c].network.genome)
+				row.append(distance)
+			distances.append(row)
+		# Separate into species based on delta threshold
+		removed = set()
+		num_species = 0
+		species = [-1 for i in range(self.population_size)]
+		for i, agent in enumerate(self.agents):
+			if agent in removed:
+				continue
+			#go through the distances relative to this agent
+			#add species below a threshold of 1.5 to the same species
+			num_species += 1
+			species[i] = num_species
+			removed.add(agent)
+			for j, diff in enumerate(distances[i]):
+				if j == i:
+					continue
+				if diff < threshold:
+					species[j] = num_species
+					removed.add(agents[j])
+		return species
+
+
+	"""
+		Calculates the fitnesses for the genomes intra-species
+	"""
+	def calculate_species_fitness(self):
 		pass
 
 	"""
-		Gives the intra species(determined by the speciate function) 
-		fitnesses of all the agents
-
+		Runs the Nuroevolution of Augmenting Topologies(NEAT) process
 	"""
+	def run_neuroevolution(self, n_generations, excess_c = 1, disjoint_c = 1, diff_threshold = 1):
+		fitnesses = self.evaluate() # Evaluates all agents in population
+		species = self.speciate(fitnesses) # Separates the agents into species
+
+		# Calculate the species mean fitnesses
+
+		# Calculate the intra species relative fitnesses
+
+		# Select the genomes to survive based on the 
 
 
 	"""
@@ -243,19 +326,11 @@ class Population():
 	def size(self):
 		return len(self.agents)
 
-"""
-	Runs the NEAT process for n_iterations
-"""
-def run_neat(n_generations, environment, population_size=10):
-	population = Population(population_size, environment)
-	fitnesses = population.evaluate()
-	#for generation in range(n_generations):
-	#	pass
-
 
 # Initialize the environment
 env = gym.make('CartPole-v0')
 # Run the evolutionary process for n generations
-neat_out = run_neat(50, env)
+population = Population(10, env)
+neat_out = population.run_neuroevolution(50)
 
 env.close()
