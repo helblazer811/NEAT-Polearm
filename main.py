@@ -66,6 +66,9 @@ class Genome():
 	"""
 	def initialize_empty(self, input_size, output_size):
 		#generate input and output nodes
+		Node.number = 0
+		Connection.number = 0
+
 		self.nodes = []
 		self.connections = []
 		input_nodes = []
@@ -291,15 +294,17 @@ class Population():
 				continue
 			#go through the distances relative to this agent
 			#add species below a threshold of 1.5 to the same species
-			num_species += 1
 			species[i] = num_species
 			removed.add(agent)
+
 			for j, diff in enumerate(distances[i]):
 				if j == i:
 					continue
 				if diff < threshold:
 					species[j] = num_species
-					removed.add(agents[j])
+					removed.add(self.agents[j])
+
+			num_species += 1
 
 		return species
 
@@ -333,6 +338,7 @@ class Population():
 		fitnesses = self.evaluate() 
 		# Separates the agents into species
 		species = self.speciate(fitnesses) 
+		print(species)
 		# Calculate the species mean fitnesses
 		# NOTE Ignored for now
 		mean_fitnesses = self.calculate_mean_fitnesses(fitnesses, species) 
@@ -361,7 +367,6 @@ env.close()
 
 # TODO
 # Fix the distance metric
-# Initialize the networks/genomes with the same topology
 # Maybe employ clustering on the genome difference data
 # Implement crossover
 # Integrate random mutation
