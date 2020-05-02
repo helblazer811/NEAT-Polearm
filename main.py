@@ -97,7 +97,13 @@ class Genome():
 		self.connections = connections
 
 	"""
-		Handles adding a connection to the graph
+		Mutates the given renome randomly given defined mutation rates
+	"""
+	def mutate(self, connection_rate=0.1, weight_rate=0.2):
+		pass
+
+	"""
+		Handles a adding a connection to the graph
 	"""
 	def add_connection(self):
 		pass
@@ -106,6 +112,14 @@ class Genome():
 		Handles adding a node to the graph
 	"""
 	def add_node(self):
+		pass
+
+
+	"""
+		Crossover of two genomes
+	"""
+	@staticmethod
+	def crossover(genome_a, genome_b):
 		pass
 
 	"""
@@ -281,6 +295,7 @@ class Population():
 			row = []
 			for c in range(0, self.population_size):
 				if c == r:
+					row.append(0.0)
 					continue
 				distance = Genome.distance(self.agents[r].network.genome, self.agents[c].network.genome)
 				row.append(distance)
@@ -290,13 +305,14 @@ class Population():
 		num_species = 0
 		species = [-1 for i in range(self.population_size)]
 		for i, agent in enumerate(self.agents):
+			if len(removed) == len(fitnesses):
+				break
 			if agent in removed:
 				continue
 			#go through the distances relative to this agent
 			#add species below a threshold of 1.5 to the same species
 			species[i] = num_species
 			removed.add(agent)
-
 			for j, diff in enumerate(distances[i]):
 				if j == i:
 					continue
@@ -313,14 +329,14 @@ class Population():
 		Calculates the fitnesses for the genomes intra-species
 	"""
 	def calculate_mean_fitnesses(self, fitnesses, species):
-		species_counts = [0] * max(species)
+		species_counts = [0] * (max(species) + 1)
 		for agent_species in species:
-			species_counts[agent_species - 1] += 1
+			species_counts[agent_species] += 1
 
-		mean_fitnesses = [0.0] * max(species) 
+		mean_fitnesses = [0.0] * (max(species) + 1)
 		for i, fitness in enumerate(fitnesses):
 			this_species = species[i]
-			mean_fitnesses[this_species - 1] += fitness / species_counts[this_species - 1]
+			mean_fitnesses[this_species] += fitness / species_counts[this_species]
 
 		return mean_fitnesses
 
@@ -328,26 +344,43 @@ class Population():
 		Calculates the fitnesses of the species relative to eachother
 	"""
 	def calculate_intra_fitnesses(self, mean_fitnesses, species, fitnesses):
+		relative_fitnesses = [fitnesses[i] - mean_fitnesses[species[i]] for i in range(len(species))]
+		return relative_fitnesses
+
+	"""
+		Returns a list of surviving agents based on randomness weighted by the 
+		intra-species relative fitnesses
+	"""
+	def select_survivors(self, intra_species_fitnesses, species, survival_rate=0.8):
+		pass
+
+	"""
+		Generates a new population based on crossover and mutation of the previous
+		generation
+	"""
+	def next_generation(self, survivors, species):
 		pass
 
 	"""
 		Runs the Nuroevolution of Augmenting Topologies(NEAT) process
 	"""
 	def run_neuroevolution(self, n_generations, excess_c = 1, disjoint_c = 1, diff_threshold = 1):
-		# Evaluates all agents in population
-		fitnesses = self.evaluate() 
-		# Separates the agents into species
-		species = self.speciate(fitnesses) 
-		print(species)
-		# Calculate the species mean fitnesses
-		# NOTE Ignored for now
-		mean_fitnesses = self.calculate_mean_fitnesses(fitnesses, species) 
-		# Calculate the intra species relative fitnesses
-		# NOTE Ignored for now
-		intra_fitnesses = self.calculate_intra_fitnesses(mean_fitnesses, species, fitnesses)
-		# Select the genomes to survive based on the 
-		# Kill the bottom third
-		# Crossover the remaining ones randomly based on fitness values
+		# Iterate for n_generations
+		for generation in range(0, n_generations):
+			# Evaluates all agents in population
+			fitnesses = self.evaluate()
+			# Separates the agents into species
+			species = self.speciate(fitnesses)
+			# Calculate the species mean fitnesses
+			mean_fitnesses = self.calculate_mean_fitnesses(fitnesses, species)
+			# Calculate the intra species relative fitnesses
+			intra_fitnesses = self.calculate_intra_fitnesses(mean_fitnesses, species, fitnesses)
+			# Select a list of agents to survive
+			surviving_agents = self.select_survivors(intra_fitnesses, species)
+			# Crossover/ mutate the survivors
+			next_generation = self.next_generation(surviving_agents, species)
+			# Re-assign agents to this next generation
+			self.agents = next_generation
 
 	"""
 		Returns the number of agents in the population
