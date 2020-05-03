@@ -1,5 +1,7 @@
 import gym
 import numpy as np
+import random
+import copy
 
 # Helper functions
 
@@ -15,19 +17,32 @@ def relu(X):
 class Node():
 	number = 0
 
-	def __init__(self, node_type="hidden", activation=relu, output_number = None, input_number = None):
+	def __init__(self, node_type="hidden", activation=relu, input_number=None, output_number=None):
 		self.num = Node.number + 1
 		Node.number += 1
 		self.type = node_type
 		self.activation = activation #fixed for now
+		self.input_number = input_number
+		self.output_number = output_number
 		self.incoming_edges = []
 		self.outgoing_edges = []
-		self.output_number = output_number
-		self.input_number = input_number
 
 	def __repr__(self):
 		return "Node(number = "+str(self.num)+", type = "+str(self.type)+")"
 
+	"""
+		Returns a copy of this object with empty incoming and leaving edges
+	"""
+	def copy(self):
+		node_num = Node.number
+		new_node = Node()
+		new_node.type = self.type
+		new_node.num = self.num
+		new_node.input_number = self.input_number
+		new_node.output_number = self.output_number
+		new_node.activation = self.activation
+		Node.number = node_num
+		return new_node
 """
 	Connection object for a genome
 """
@@ -45,6 +60,17 @@ class Connection():
 	def __repr__(self):
 		return "Connection(number = {}, input = {}, out = {})".format(self.num, self.in_node.num, self.out_node.num)
 
+	"""
+		Returns a copy of the connection without input/output nodes
+	"""
+	def copy(self):
+		conn_num = Connection.number
+		new_conn = Connection(None,None)
+		new_conn.num = self.num
+		new_conn.weight = self.weight
+		new_conn.enabled = self.enabled
+		Connection.number = conn_num
+		return new_conn
 """
 	The genome for an agent defining a network, 
 	it contains all the information necessary to 
@@ -73,12 +99,12 @@ class Genome():
 		self.connections = []
 		input_nodes = []
 		for i in range(input_size):
-			new_node = Node(node_type = "input", input_number = i)
+			new_node = Node(node_type = "input", input_number=i)
 			input_nodes.append(new_node)
 
 		output_nodes = []
 		for i in range(output_size):
-			new_node = Node(node_type = "output", output_number = i)
+			new_node = Node(node_type = "output", output_number=i)
 			output_nodes.append(new_node)
 
 		self.input_nodes = input_nodes
@@ -96,24 +122,45 @@ class Genome():
 				out_node.incoming_edges.append(connection)
 		self.connections = connections
 
+
 	"""
 		Mutates the given renome randomly given defined mutation rates
 	"""
 	def mutate(self, connection_rate=0.1, weight_rate=0.2):
-		pass
+		random_value = random.random()
+
+		if random_value < connection_rate:
+			self.add_random_connection()
+		if random_value < weight_rate:
+			self.change_random_weight()
+
 
 	"""
-		Handles a adding a connection to the graph
+		Adds a new random connection to the node
 	"""
-	def add_connection(self):
-		pass
+	def add_random_connection(self):
+		# Take a random connection and add a node in between it
+		# making one connection an identity and one the same as the 
+		# previous weight
+		rand_index = int(random.random() * len(self.connections))
+		old_connection = self.connections[rand_index]
+		old_connection.enabled = False
+		new_node = Node()
+		old_input = old_connection.in_node
+		old_output = old_connection.out_node
+		new_connection_a = Connection(old_input, new_node, weight=old_connection.weight)
+		new_connection_b = Connection(new_node, old_output, weight=1.0) 
+		new_node.incoming_edges.append(new_connection_a)
+		new_node.outgoing_edges.append(new_connection_b)
 
 	"""
-		Handles adding a node to the graph
+		Changes a random weight
 	"""
-	def add_node(self):
-		pass
-
+	def change_random_weight(self):
+		rand_index = int(random.random() * len(self.connections))
+		# randomize a random weight
+		self.connections[rand_index].weight = random.random()
+		# TODO figure out if this is a good policy
 
 	"""
 		Crossover of two genomes
@@ -160,6 +207,52 @@ class Genome():
 
 		return distance
 
+	"""
+		Deep copies the genome object
+	"""
+	def deepcopy(self):
+		node_num = Node.number
+		# create a one to one mapping of old nodes to new nodes
+		node_map = {}
+		for i, old_node in enumerate(self.nodes):
+			node_map[old_node] = old_node.copy() # does not copy the incoming/outgoing edges
+		# make a copy of the input_nodes
+		input_nodes_copy = []
+		for input_node in self.input_nodes:
+			input_nodes_copy.append(node_map[input_node])
+		# make a copy of the ouptut_nodes
+		output_nodes_copy = []
+		for out_node in self.output_nodes:
+			output_nodes_copy.append(node_map[out_node])
+		# create a one to one mapping of the old connections to the new
+		conn_map = {}
+		for i, old_conn in enumerate(self.connections):
+			conn_map[old_conn] = old_conn.copy()
+		# update the in/out nodes for each connection
+		for old_conn in self.connections:
+			conn_map[old_conn].in_node = node_map[old_conn.in_node]
+			conn_map[old_conn].out_node = node_map[old_conn.out_node]
+		# update the incoming/outgoing connections in each node
+		for old_node in self.nodes:
+			# incoming
+			incoming = []
+			for conn in old_node.incoming_edges:
+				incoming.append(conn_map[conn])
+			# outgoing
+			outgoing = []
+			for conn in old_node.outgoing_edges:
+				outgoing.append(conn_map[conn])
+
+			node_map[old_node].outgoing_edges = outgoing
+			node_map[old_node].incoming_edges = incoming
+		# return the genome
+		copied_genome = Genome()
+		copied_genome.input_nodes = input_nodes_copy
+		copied_genome.output_nodes = output_nodes_copy
+		copied_genome.nodes = list(node_map.values())
+		copied_genome.connections = list(conn_map.values())
+		return copied_genome
+
 """
 	A neural network that is being used as the best action 
 	prediction function for the given environment task
@@ -205,7 +298,6 @@ class Network():
 
 		return np.argmax(outputs)
 
-
 	"""
 		Does topoligical sort of the genome connections
 		so only a single pass of the graph is necessary
@@ -240,10 +332,9 @@ class Network():
 """
 class Agent():
 
-	def __init__(self, environment, genome = None):
+	def __init__(self, environment, genome=None):
 		self.environment = environment
-		self.genome = genome
-		self.network = Network(environment.observation_space.shape[0],environment.action_space.n)
+		self.network = Network(environment.observation_space.shape[0],environment.action_space.n, genome=genome)
 
 	"""
 		Evaluates the fitness of the agent based on the passed environment
@@ -261,6 +352,14 @@ class Agent():
 				break
 
 		return fitness
+
+	"""
+		Makes a copy of this agent
+	"""
+	def deepcopy(self):
+		copied_genome = self.network.genome.deepcopy()
+		copied_agent = Agent(self.environment, genome=copied_genome)
+		return copied_agent
 
 """
 	A population of Agents meant to solve the task 
@@ -324,7 +423,6 @@ class Population():
 
 		return species
 
-
 	"""
 		Calculates the fitnesses for the genomes intra-species
 	"""
@@ -345,21 +443,60 @@ class Population():
 	"""
 	def calculate_intra_fitnesses(self, mean_fitnesses, species, fitnesses):
 		relative_fitnesses = [fitnesses[i] - mean_fitnesses[species[i]] for i in range(len(species))]
+
+		num_species = max(species) + 1
+		# compress between zero and one for each species min/max
+		species_mins = [None] * num_species
+		species_maxs = [None] * num_species
+		for i,fitness in enumerate(relative_fitnesses):
+			if species_mins[species[i]] == None or fitness < species_mins[species[i]]:
+				species_mins[species[i]] = fitness
+			if species_maxs[species[i]] == None or fitness > species_maxs[species[i]]:
+				species_maxs[species[i]] = fitness
+
+		for i in range(len(relative_fitnesses)):
+			species_range = (species_maxs[species[i]] - species_mins[species[i]])
+			bottom_value = -species_mins[species[i]]
+			relative_fitnesses[i] = (relative_fitnesses[i] + bottom_value) / species_range
+
 		return relative_fitnesses
 
 	"""
 		Returns a list of surviving agents based on randomness weighted by the 
 		intra-species relative fitnesses
 	"""
-	def select_survivors(self, intra_species_fitnesses, species, survival_rate=0.8):
-		pass
+	def select_survivors(self, intra_species_fitnesses, species, survival_rate=0.7):
+		# If the normalized fitness is smaller then 0.5 there is a 30% chance of
+		# dropping it
+		survivors = [1] * len(intra_species_fitnesses)
+		uniform = np.random.uniform(0, 1, len(intra_species_fitnesses))
+		for i, fitness in enumerate(intra_species_fitnesses):
+			if intra_species_fitnesses[i] < 0.5 and uniform[i] > survival_rate:
+				survivors[i] = 0
+
+		return survivors
 
 	"""
 		Generates a new population based on crossover and mutation of the previous
 		generation
 	"""
 	def next_generation(self, survivors, species):
-		pass
+		# TODO implement crossover
+		# Randomly copy the survivors until the population is filled
+		new_agents = []
+		for i, survivor in enumerate(survivors):
+			if survivor == 1:
+				new_agents.append(self.agents[i])
+
+		while len(new_agents) < self.population_size:
+			rand_int = int(random.random() * len(new_agents))
+			copied_agent = self.agents[rand_int].deepcopy()
+			new_agents.append(copied_agent)
+		# mutate all of them
+		for i, agent in enumerate(new_agents):
+			agent.network.genome.mutate()
+
+		return new_agents
 
 	"""
 		Runs the Nuroevolution of Augmenting Topologies(NEAT) process
@@ -380,6 +517,7 @@ class Population():
 			# Crossover/ mutate the survivors
 			next_generation = self.next_generation(surviving_agents, species)
 			# Re-assign agents to this next generation
+			print(np.mean(fitnesses))
 			self.agents = next_generation
 
 	"""
@@ -388,12 +526,11 @@ class Population():
 	def size(self):
 		return len(self.agents)
 
-
 # Initialize the environment
 env = gym.make('CartPole-v0')
 # Run the evolutionary process for n generations
-population = Population(10, env)
-neat_out = population.run_neuroevolution(50)
+population = Population(80, env)
+neat_out = population.run_neuroevolution(10)
 
 env.close()
 
@@ -402,6 +539,7 @@ env.close()
 # Fix the distance metric
 # Maybe employ clustering on the genome difference data
 # Implement crossover
+# Make a better selection rule
 # Integrate random mutation
 # Allow parameterization for mutation, crossover, species difference 
 #      thresholds, at the top level in run_neuroevolution
