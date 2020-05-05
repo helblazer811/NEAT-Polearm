@@ -1,13 +1,16 @@
 import gym
 import numpy as np
 import random
-import copy
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import plotting
+import networkx as nx
 
 # Helper functions
 
 def relu(X):
    return np.maximum(0,X)
-
 
 # Tests
 
@@ -156,10 +159,15 @@ class Genome():
 	"""
 		Changes a random weight
 	"""
-	def change_random_weight(self):
+	def change_random_weight(self, sigma = 0.08):
 		rand_index = int(random.random() * len(self.connections))
 		# randomize a random weight
-		self.connections[rand_index].weight = random.random()
+		old_weight = self.connections[rand_index].weight
+		new_weight = np.random.normal(old_weight, sigma, 1)[0]
+		new_weight = 0 if new_weight < 0.0 else new_weight
+		new_weight = 1 if new_weight > 1.0 else new_weight
+
+		self.connections[rand_index].weight = new_weight
 		# TODO figure out if this is a good policy
 
 	"""
@@ -252,6 +260,21 @@ class Genome():
 		copied_genome.nodes = list(node_map.values())
 		copied_genome.connections = list(conn_map.values())
 		return copied_genome
+
+	"""
+		Convert genome to a networkx format
+	"""
+	def convert_to_networkx(self):
+		network = nx.Graph()
+
+		converted_nodes = [node.num for node in self.nodes]
+		network.add_nodes_from(converted_nodes)
+
+		for conn in self.connections:
+			network.add_edge(conn.in_node.num, conn.out_node.num, weight=conn.weight)
+
+		return network
+
 
 """
 	A neural network that is being used as the best action 
@@ -386,7 +409,7 @@ class Population():
 		Divides the population into several species based on 
 		the genome 
 	"""
-	def speciate(self, fitnesses, threshold = 1.5):
+	def speciate(self, fitnesses, threshold = 0.3):
 		# Calculate the distance metric of every genome in the population
 		# with every other genome
 		distances = []
@@ -457,7 +480,10 @@ class Population():
 		for i in range(len(relative_fitnesses)):
 			species_range = (species_maxs[species[i]] - species_mins[species[i]])
 			bottom_value = -species_mins[species[i]]
-			relative_fitnesses[i] = (relative_fitnesses[i] + bottom_value) / species_range
+			if species_range == 0:
+				relative_fitnesses[i] = 0.0
+			else:
+				relative_fitnesses[i] = (relative_fitnesses[i] + bottom_value) / species_range
 
 		return relative_fitnesses
 
@@ -499,9 +525,22 @@ class Population():
 		return new_agents
 
 	"""
+		Adds data about all agents of this generation to to the dataframe
+	"""
+	def add_generation_to_data_array(self, data_array, fitnesses, species, mean_fitnesses, survivors):
+		for agent_index in range(len(fitnesses)):
+			row = {
+				"fitness": fitnesses[agent_index],
+				"species": species[agent_index],
+				"survived": survivors[agent_index] == 1,
+				"mean_fitness": mean_fitnesses[species[agent_index]]
+			}
+			data_array.append(row)
+
+	"""
 		Runs the Nuroevolution of Augmenting Topologies(NEAT) process
 	"""
-	def run_neuroevolution(self, n_generations, excess_c = 1, disjoint_c = 1, diff_threshold = 1):
+	def run_neuroevolution(self, n_generations, excess_c = 1, disjoint_c = 1, diff_threshold = 1, data_array=None, snapshots=None):
 		# Iterate for n_generations
 		for generation in range(0, n_generations):
 			# Evaluates all agents in population
@@ -517,8 +556,12 @@ class Population():
 			# Crossover/ mutate the survivors
 			next_generation = self.next_generation(surviving_agents, species)
 			# Re-assign agents to this next generation
-			print(np.mean(fitnesses))
 			self.agents = next_generation
+			# Append to dataframe
+			if not data_array is None:
+				self.add_generation_to_data_array(data_array, fitnesses, species, mean_fitnesses, surviving_agents)
+
+			#plotting.draw_network(self.agents[0].network.genome.convert_to_networkx())
 
 	"""
 		Returns the number of agents in the population
@@ -526,13 +569,44 @@ class Population():
 	def size(self):
 		return len(self.agents)
 
+# Plotting functions 
+
+"""
+	Plots the fitnesses of the species
+"""
+def plot_fitness(species, fitnesses):
+	num_species = max(species) + 1
+	species_fitnesses = {}
+	for i in range(len(species)):
+		if not species[i] in species_fitnesses.keys():
+			species_fitnesses[species[i]] = [fitnesses[i]]
+		species_fitnesses[species[i]].append(fitnesses[i])
+
+	#print(species_fitnesses)
+	#turn data into pandas dataframe
+	#df = pd.DataFrame(species_fitnesses)
+	
+	#ax = sns.violinplot(data=df, palette="muted")
+
+	#plt.draw()
+# Plotting settings
+
 # Initialize the environment
 env = gym.make('CartPole-v0')
+# Create population
+population = Population(5, env)
+# Create storage arrays
+data_array = []
+snapshots = [] 
 # Run the evolutionary process for n generations
-population = Population(80, env)
-neat_out = population.run_neuroevolution(10)
-
+neat_out = population.run_neuroevolution(5, data_array=data_array, snapshots=snapshots)
+# Close environment 
 env.close()
+# Create dataframe
+df = pd.DataFrame(columns=['species','fitness','survived','mean_fitness']) #data frame that holds the results of 
+df = df.append(data_array)
+# Pickle data frame
+df.to_csv("data.csv")
 
 
 # TODO
