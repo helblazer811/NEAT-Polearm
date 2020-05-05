@@ -276,26 +276,55 @@ class Genome():
 		return network
 
 
-"""
-	A neural network that is being used as the best action 
-	prediction function for the given environment task
 
 """
-class Network():
-	
-	def __init__(self, input_size, output_size, genome = None):
+	Agent that belongs to the population used in the 
+	evolutionary process. It holds a network as well as 
+	additional information required to run the evolutionary 
+	process. 
+"""
+class Agent():
+
+	def __init__(self, environment, genome=None):
+		self.environment = environment
+		self.input_size = environment.observation_space.shape[0]
+		self.output_size = environment.action_space.n
+
 		if genome != None:
 			self.genome = genome
 		else:
 			self.genome = Genome()
-			self.genome.initialize_empty(input_size, output_size)
+			self.genome.initialize_empty(self.input_size, self.output_size)
 
-		self.input_size = input_size
-		self.output_size = output_size
-		self.sorted_genome = Network.topological_sort(self.genome)
+		self.sorted_genome = Agent.topological_sort(self.genome)
 
 	"""
-		Network that takes in the input state and outputs
+		Evaluates the fitness of the agent based on the passed environment
+	"""
+	def evaluate(self):
+		fitness = 0.0
+
+		observation = env.reset()
+		for t in range(100):
+			env.render()
+			action = self.predict(observation)
+			observation, reward, done, info = env.step(action)
+			if done:
+				fitness = t * 1.0
+				break
+
+		return fitness
+
+	"""
+		Makes a copy of this agent
+	"""
+	def deepcopy(self):
+		copied_genome = self.genome.deepcopy()
+		copied_agent = Agent(self.environment, genome=copied_genome)
+		return copied_agent
+
+	"""
+		Runs the agent's network that takes in the input state and outputs
 		a prediction of the best action
 	"""
 	def predict(self,state):
@@ -346,44 +375,6 @@ class Network():
 				if empty:
 					no_incoming.append(edge.out_node)
 		return sorted_nodes
-
-"""
-	Agent that belongs to the population used in the 
-	evolutionary process. It holds a network as well as 
-	additional information required to run the evolutionary 
-	process. 
-"""
-class Agent():
-
-	def __init__(self, environment, genome=None):
-		self.environment = environment
-		self.network = Network(environment.observation_space.shape[0],environment.action_space.n, genome=genome)
-
-	"""
-		Evaluates the fitness of the agent based on the passed environment
-	"""
-	def evaluate(self):
-		fitness = 0.0
-
-		observation = env.reset()
-		for t in range(100):
-			env.render()
-			action = self.network.predict(observation)
-			observation, reward, done, info = env.step(action)
-			if done:
-				fitness = t * 1.0
-				break
-
-		return fitness
-
-	"""
-		Makes a copy of this agent
-	"""
-	def deepcopy(self):
-		copied_genome = self.network.genome.deepcopy()
-		copied_agent = Agent(self.environment, genome=copied_genome)
-		return copied_agent
-
 """
 	A population of Agents meant to solve the task 
 	described by the environment
@@ -419,7 +410,7 @@ class Population():
 				if c == r:
 					row.append(0.0)
 					continue
-				distance = Genome.distance(self.agents[r].network.genome, self.agents[c].network.genome)
+				distance = Genome.distance(self.agents[r].genome, self.agents[c].genome)
 				row.append(distance)
 			distances.append(row)
 		# Separate into species based on delta threshold
@@ -520,7 +511,7 @@ class Population():
 			new_agents.append(copied_agent)
 		# mutate all of them
 		for i, agent in enumerate(new_agents):
-			agent.network.genome.mutate()
+			agent.genome.mutate()
 
 		return new_agents
 
@@ -561,35 +552,11 @@ class Population():
 			if not data_array is None:
 				self.add_generation_to_data_array(data_array, fitnesses, species, mean_fitnesses, surviving_agents)
 
-			#plotting.draw_network(self.agents[0].network.genome.convert_to_networkx())
-
 	"""
 		Returns the number of agents in the population
 	"""
 	def size(self):
 		return len(self.agents)
-
-# Plotting functions 
-
-"""
-	Plots the fitnesses of the species
-"""
-def plot_fitness(species, fitnesses):
-	num_species = max(species) + 1
-	species_fitnesses = {}
-	for i in range(len(species)):
-		if not species[i] in species_fitnesses.keys():
-			species_fitnesses[species[i]] = [fitnesses[i]]
-		species_fitnesses[species[i]].append(fitnesses[i])
-
-	#print(species_fitnesses)
-	#turn data into pandas dataframe
-	#df = pd.DataFrame(species_fitnesses)
-	
-	#ax = sns.violinplot(data=df, palette="muted")
-
-	#plt.draw()
-# Plotting settings
 
 # Initialize the environment
 env = gym.make('CartPole-v0')
