@@ -518,9 +518,10 @@ class Population():
 	"""
 		Adds data about all agents of this generation to to the dataframe
 	"""
-	def add_generation_to_data_array(self, data_array, fitnesses, species, mean_fitnesses, survivors):
+	def add_generation_to_data_array(self, data_array, fitnesses, species, mean_fitnesses, survivors, generation):
 		for agent_index in range(len(fitnesses)):
 			row = {
+				'generation':generation,
 				"fitness": fitnesses[agent_index],
 				"species": species[agent_index],
 				"survived": survivors[agent_index] == 1,
@@ -550,7 +551,7 @@ class Population():
 			self.agents = next_generation
 			# Append to dataframe
 			if not data_array is None:
-				self.add_generation_to_data_array(data_array, fitnesses, species, mean_fitnesses, surviving_agents)
+				self.add_generation_to_data_array(data_array, fitnesses, species, mean_fitnesses, surviving_agents, generation)
 
 	"""
 		Returns the number of agents in the population
@@ -561,19 +562,24 @@ class Population():
 # Initialize the environment
 env = gym.make('CartPole-v0')
 # Create population
-population = Population(5, env)
+population = Population(80, env)
 # Create storage arrays
 data_array = []
 snapshots = [] 
 # Run the evolutionary process for n generations
-neat_out = population.run_neuroevolution(5, data_array=data_array, snapshots=snapshots)
+neat_out = population.run_neuroevolution(30, data_array=data_array, snapshots=snapshots)
 # Close environment 
 env.close()
 # Create dataframe
-df = pd.DataFrame(columns=['species','fitness','survived','mean_fitness']) #data frame that holds the results of 
+df = pd.DataFrame(columns=['generation','species','fitness','survived','mean_fitness']) #data frame that holds the results of 
 df = df.append(data_array)
-# Pickle data frame
 df.to_csv("data.csv")
+#get rows with highest generation
+rows = df.loc[df['generation'] == df['generation'].max()]
+species = rows['species'].tolist()
+fitness = rows['fitness'].tolist()
+plotting.draw_histogram(fitness,species)
+# Pickle data frame
 
 
 # TODO

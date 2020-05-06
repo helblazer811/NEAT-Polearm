@@ -1,5 +1,6 @@
 import networkx as nx
 import matplotlib.pyplot as plt
+import pandas as pd
 """
 	Set of helper functions for plotting
 """
@@ -22,3 +23,16 @@ def draw_network(network, path="network.png"):
 	plt.savefig(path)
 	plt.show()
 	
+
+"""
+	Plots a fitness histogram with different color
+"""
+def draw_histogram(fitnesses, species, n_bins=10):
+	species_fitnesses = [[] for i in range(max(species) + 1)]
+	for i in range(len(fitnesses)):
+		species_fitnesses[species[i]].append(fitnesses[i])
+
+
+	plt.hist(species_fitnesses, n_bins, density=True, histtype='bar')
+	plt.legend(prop={'size': 10})
+	plt.show()
