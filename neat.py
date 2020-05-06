@@ -304,11 +304,11 @@ class Agent():
 	def evaluate(self):
 		fitness = 0.0
 
-		observation = env.reset()
+		observation = self.environment.reset()
 		for t in range(100):
-			env.render()
+			self.environment.render()
 			action = self.predict(observation)
-			observation, reward, done, info = env.step(action)
+			observation, reward, done, info = self.environment.step(action)
 			if done:
 				fitness = t * 1.0
 				break
@@ -559,34 +559,4 @@ class Population():
 	def size(self):
 		return len(self.agents)
 
-# Initialize the environment
-env = gym.make('CartPole-v0')
-# Create population
-population = Population(80, env)
-# Create storage arrays
-data_array = []
-snapshots = [] 
-# Run the evolutionary process for n generations
-neat_out = population.run_neuroevolution(30, data_array=data_array, snapshots=snapshots)
-# Close environment 
-env.close()
-# Create dataframe
-df = pd.DataFrame(columns=['generation','species','fitness','survived','mean_fitness']) #data frame that holds the results of 
-df = df.append(data_array)
-df.to_csv("data.csv")
-#get rows with highest generation
-rows = df.loc[df['generation'] == df['generation'].max()]
-species = rows['species'].tolist()
-fitness = rows['fitness'].tolist()
-plotting.draw_histogram(fitness,species)
-# Pickle data frame
 
-
-# TODO
-# Fix the distance metric
-# Maybe employ clustering on the genome difference data
-# Implement crossover
-# Make a better selection rule
-# Integrate random mutation
-# Allow parameterization for mutation, crossover, species difference 
-#      thresholds, at the top level in run_neuroevolution

@@ -1,0 +1,8 @@
+- TODO
+- Fix the distance metric
+- Maybe employ clustering on the genome difference data
+- Implement crossover
+- Make a better selection rule
+- Integrate random mutation
+- Allow parameterization for mutation, crossover, species difference 
+-      thresholds, at the top level in run_neuroevolution
