@@ -77,9 +77,9 @@ def plot_species_fitnesses(data_frame):
 
 if __name__ == "__main__":
 	# import the data
-	df = pd.read_csv("data/data2.csv")
+	df = pd.read_csv("data/data4.csv")
 	#get rows with highest generation
-	#draw_histogram(df)
+	draw_histogram(df)
 	plot_average_fitness(df)
 
 
