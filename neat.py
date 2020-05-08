@@ -410,39 +410,6 @@ class Population():
 
 		return distances
 
-	"""
-		Takes in the old/new genomes clusters and the old genomes cluster numbers
-		and maps the old ones to the new ones
-	"""
-	def map_species_numbers(self, species_classes, last_gen_old_classes):
-		# species_classes is (this_gen, last_gen) concatenated together
-		this_gen_classes = species_classes[0:len(last_gen_old_classes)]
-		last_gen_new_classes = species_classes[len(last_gen_old_classes):]
-		# Hashmap from new classes to old
-		# Initialize hashmap
-		new_to_old = {}
-		num_classes = max(species_classes) + 1
-		for i in range(num_classes):
-			new_to_old[i] = []
-		# Make a list of the old class for each new one
-		for i, new_class in enumerate(last_gen_new_classes):
-			new_to_old[new_class].append(last_gen_old_classes[i])
-		# go through the new to old map and map the most common on the old
-		# if its empty then it is a new species
-		max_number = max(last_gen_old_classes)
-		class_mapping = {}
-		for new_class in new_to_old.keys():
-			if len(new_to_old[new_class]) == 0:
-				# New species because no old genome fits into the class
-				class_mapping[new_class] = max_number + 1
-				max_number += 1
-			# Take most common class
-			class_mapping[new_class] = scipy.stats.mode(new_to_old[new_class]).mode[0]
-		# Do the mapping for the current gen genomes
-		for i in range(len(this_gen_classes)):
-			this_gen_classes[i] = class_mapping[this_gen_classes[i]]
-		print(this_gen_classes)
-		return this_gen_classes
 
 	"""
 		Uses scipy to cluster the genomes based on a 
@@ -464,11 +431,9 @@ class Population():
 		https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.cluster.hierarchy.linkage.html
 
 	"""
-	def clustering_speciate(self, last_gen_species, max_clust=5):
+	def clustering_speciate(self, max_clust=5):
 		# Add this/last gen together
 		this_genomes = [self.agents[i].genome for i in range(len(self.agents))]
-		#last_genomes = [genome for (num, genome) in last_gen_species]
-		#genomes = list(np.concatenate((this_genomes, last_genomes)))
 		# Calculate a distance matrix of the genomes using the distance
 		distances = self.calculate_distance_matrix(this_genomes)
 		# Convert that to a condensed 1-d  distance format
@@ -478,25 +443,14 @@ class Population():
 		# Using an initally arbitrary depth generate cluster classifications
 		species_classes = scipy.cluster.hierarchy.fcluster(cluster_linkages, criterion='maxclust', t = max_clust)
 		species_classes -= 1 # so it starts at zero not 1
-		print(species_classes)
+
 		return species_classes
-		# See if is first gen
-		#if len(last_gen_species) == 0:
-		#		return species_classes
-		# Map old classes to new classes
-		#last_gen_old_classes = [species for (species, genome) in last_gen_species]
-		#mapped_classes = self.map_species_numbers(species_classes, last_gen_old_classes)
-
-		#return mapped_classes
 
 	"""
-		Divides the population into several species based on 
-		the genome 
+		Original speciation method
 	"""
-	def speciate(self, last_gen_species, threshold = 0.3, clustering=True):
-		# Run with clustering instead
-		if clustering:
-			return self.clustering_speciate(last_gen_species)
+	def original_speciate(self, threshold = 0.3):
+
 		# Calculate the distance metric of every genome in the population
 		# with every other genome
 		distances = self.calculate_distance_matrix()
@@ -523,6 +477,17 @@ class Population():
 			num_species += 1
 
 		return species
+
+	"""
+		Divides the population into several species based on 
+		the genome 
+	"""
+	def speciate(self, clustering=True):
+		# Run with clustering instead
+		if clustering:
+			return self.clustering_speciate()
+		else:
+			return self.original_speciate()
 
 	"""
 		Calculates the fitnesses for the genomes intra-species
@@ -621,12 +586,11 @@ class Population():
 	"""
 	def run_neuroevolution(self, n_generations, excess_c = 1, disjoint_c = 1, diff_threshold = 1, data_array=None, snapshots=None):
 		# Iterate for n_generations
-		last_gen_species = [] # array of tuples (species_number, GenomeObject)
 		for generation in range(0, n_generations):
 			# Evaluates all agents in population
 			fitnesses = self.evaluate()
 			# Separates the agents into species
-			species = self.speciate(last_gen_species)
+			species = self.speciate()
 			# Calculate the species mean fitnesses
 			mean_fitnesses = self.calculate_mean_fitnesses(fitnesses, species)
 			# Calculate the intra species relative fitnesses
@@ -635,8 +599,6 @@ class Population():
 			surviving_agents = self.select_survivors(intra_fitnesses, species)
 			# Crossover/ mutate the survivors
 			next_generation = self.next_generation(surviving_agents, species)
-			# Add genomes to last_gen_species
-			last_gen_species = [(species[i], agent.genome) for i, agent in enumerate(self.agents)]
 			# Re-assign agents to this next generation
 			self.agents = next_generation
 			# Append to dataframe
